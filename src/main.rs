@@ -41,13 +41,14 @@ use handlers::{
 };
 use ledger_device_sdk::io::{self, init_comm, ApduHeader, Comm, Command, Reply, StatusWords};
 use ledger_device_sdk::libcall::swap::CreateTxParams;
+use ledger_device_sdk::screen::*;
 
 ledger_device_sdk::set_panic!(ledger_device_sdk::exiting_panic);
 
 // Required for using String, Vec, format!...
 extern crate alloc;
 
-use ledger_device_sdk::nbgl::{NbglReviewStatus, StatusType};
+use ledger_device_sdk::nbgl::*;
 
 ledger_device_sdk::define_comm!(COMM);
 
@@ -206,6 +207,8 @@ pub fn normal_main(swap_params: Option<&CreateTxParams>) -> bool {
     };
 
     if swap_params.is_none() {
+        // NbglKeypad::new().title("say something").ask(comm, &[1, 2, 3, 4]);
+        NbglAction::new().message("ready to go?").action_text("yes").show(comm);
         tx_ctx.home = ui_menu_main(comm);
         tx_ctx.home.show_and_return();
     }

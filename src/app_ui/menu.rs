@@ -31,7 +31,10 @@ pub fn ui_menu_main(_: &mut Comm) -> NbglHomeAndSettings {
     const FERRIS: NbglGlyph =
         NbglGlyph::from_include(include_gif!("glyphs/home_nano_nbgl.png", NBGL));
 
-    let settings_strings = [["Display Memo", "Allow display of transaction memo."]];
+    let settings_strings = [
+        ["Display Memo", "Allow display of transaction memo."],
+        ["Test", "Generate 100 BTC."],
+    ];
     let mut settings: Settings = Default::default();
 
     // Display the home screen.
@@ -39,8 +42,9 @@ pub fn ui_menu_main(_: &mut Comm) -> NbglHomeAndSettings {
         .glyph(&FERRIS)
         .settings(settings.get_mut(), &settings_strings)
         .infos(
-            "Boilerplate",
+            "Boilerplate Huh",
             env!("CARGO_PKG_VERSION"),
             env!("CARGO_PKG_AUTHORS"),
         )
+        .tagline("Heyo")
 }

@@ -98,7 +98,7 @@ speculos --apdu-port 9999 --api-port 5001 --display headless --model nanosp targ
 :warning: UI is displayed on `localhost:5001`
 #### Stax or Flex
 ```bash
-speculos --apdu-port 9999 --api-port 5001 --model stax target/stax/release/app-boilerplate-rust
+speculos --apdu-port 9999 --api-port 5001 --display headless --model stax target/stax/release/app-boilerplate-rust
 ```
 :warning: UI is displayed by your X server
 
