@@ -20,3 +20,7 @@ build-std-features = ["compiler-builtins-mem"]
 # Uncomment the following lines to set the heap size to 4096 bytes for instance
 #[env]
 #HEAP_SIZE = "4096"
+
+[env]
+# Compile the C SDK with NBGL_KEYBOARD so `nbgl_useCaseKeyboard` is linkable.
+LEDGER_SDK_EXTRA_DEFINES = "NBGL_KEYBOARD"

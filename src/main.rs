@@ -30,6 +30,7 @@ mod handlers {
     pub mod sign_tx;
 }
 
+mod keyboard;
 mod settings;
 mod swap;
 
@@ -42,6 +43,7 @@ use handlers::{
 use ledger_device_sdk::io::{self, init_comm, ApduHeader, Comm, Command, Reply, StatusWords};
 use ledger_device_sdk::libcall::swap::CreateTxParams;
 use ledger_device_sdk::screen::*;
+use ledger_device_sdk::*;
 
 ledger_device_sdk::set_panic!(ledger_device_sdk::exiting_panic);
 
@@ -208,9 +210,21 @@ pub fn normal_main(swap_params: Option<&CreateTxParams>) -> bool {
 
     if swap_params.is_none() {
         // NbglKeypad::new().title("say something").ask(comm, &[1, 2, 3, 4]);
-        NbglAction::new().message("ready to go?").action_text("yes").show(comm);
+        // NbglAction::new().message("ready to go?").action_text("yes").show(comm);
+
+        if let Some(text) = keyboard::NbglKeyboard::new()
+            .title("Type something")
+            .button_text("Confirm")
+            .entry_max_len(32)
+            .show(comm)
+        {
+            log!("KEYBOARD", "got: {}", text.as_str());
+        }
+
         tx_ctx.home = ui_menu_main(comm);
         tx_ctx.home.show_and_return();
+
+        log!("TEST", "hi");
     }
 
     loop {
