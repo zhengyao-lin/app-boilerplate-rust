@@ -30,6 +30,7 @@ mod handlers {
     pub mod sign_tx;
 }
 
+mod canvas;
 mod keyboard;
 mod nav;
 mod settings;
@@ -305,6 +306,7 @@ pub fn normal_main(swap_params: Option<&CreateTxParams>) -> bool {
                     nav::BarItem { text: "About".into(), token: 0x40 },
                     nav::BarItem { text: "Settings".into(), token: 0x41 },
                     nav::BarItem { text: "Reset".into(), token: 0x42 },
+                    nav::BarItem { text: "About".into(), token: 0x43 },
                 ],
             })
             .page(nav::NavPage::CenteredInfo {
@@ -313,6 +315,8 @@ pub fn normal_main(swap_params: Option<&CreateTxParams>) -> bool {
                 text3: "".into(),
             })
             .show(comm);
+
+        run_canvas_demo(comm);
 
         tx_ctx.home = ui_menu_main(comm);
         tx_ctx.home.show_and_return();
@@ -343,6 +347,122 @@ pub fn normal_main(swap_params: Option<&CreateTxParams>) -> bool {
         // In swap mode, exit after transaction is finished (signed or rejected)
         if tx_ctx.swap_params.is_some() && tx_ctx.finished() {
             return _status == AppSW::Ok;
+        }
+    }
+}
+
+/// Random-canvas demo: places a few text labels and four buttons at random
+/// (x, y) positions on a blank screen, with rejection-sampled non-overlap so
+/// buttons aren't visually row-aligned. Tapping any button opens the keyboard
+/// with the button label as the title; on return we redraw the canvas with
+/// fresh positions. The bottom-center "Done" button (token `0xFF`) exits.
+fn run_canvas_demo<const N: usize>(comm: &mut ledger_device_sdk::io::Comm<N>) {
+    use alloc::format;
+    use alloc::vec::Vec;
+
+    const DONE_TOKEN: u8 = 0xFF;
+    const SCREEN_W: i16 = 400;
+    const TOP: i16 = 96;
+    const BOTTOM: i16 = 656;
+    // Canonical small-button geometry on Stax: height 64, radius 32 — height
+    // = 2 * radius makes a clean pill. Both dimensions and the y coordinate
+    // must be multiples of 4 (Stax raster alignment), otherwise the rounded
+    // corners can leave artifacts.
+    const BTN_W: i16 = 200;
+    const BTN_H: i16 = 64;
+    const TXT_W: u16 = 360;
+    const TXT_H: u16 = 32;
+    // AABB inflation when checking for overlap — minimum gap between buttons.
+    const GAP: i16 = 24;
+    // Random region for buttons (excludes header text + Done-button strip).
+    const Y_MIN: i16 = TOP + 40;
+    const Y_MAX: i16 = BOTTOM - BTN_H - GAP - BTN_H; // leave room for Done btn
+    const X_MIN: i16 = 20;
+    const X_MAX: i16 = SCREEN_W - BTN_W - 20;
+    // 4-pixel snap helper.
+    fn snap4(v: i16) -> i16 {
+        v & !3
+    }
+
+    let labels = ["Alpha", "Bravo", "Charlie", "Delta"];
+
+    fn rand_u32() -> u32 {
+        let mut buf = [0u8; 4];
+        unsafe { ledger_device_sdk::sys::cx_rng_no_throw(buf.as_mut_ptr(), buf.len()) };
+        u32::from_le_bytes(buf)
+    }
+
+    fn overlaps(placed: &[(i16, i16)], x: i16, y: i16) -> bool {
+        placed.iter().any(|&(px, py)| {
+            let x_overlap = !(x + BTN_W + GAP <= px || px + BTN_W + GAP <= x);
+            let y_overlap = !(y + BTN_H + GAP <= py || py + BTN_H + GAP <= y);
+            x_overlap && y_overlap
+        })
+    }
+
+    loop {
+        let mut canvas =
+            canvas::Canvas::new().text(20, TOP, TXT_W, TXT_H, "Tap a button to type");
+
+        let mut placed: Vec<(i16, i16)> = Vec::new();
+        let x_range = (X_MAX - X_MIN) as u32;
+        let y_range = (Y_MAX - Y_MIN) as u32;
+
+        for (i, name) in labels.iter().enumerate() {
+            let mut x = X_MIN;
+            let mut y = Y_MIN;
+            // Reject up to 50 candidates to avoid overlap; if we never find a
+            // free spot, just place the last sample (rare with these bounds).
+            for _ in 0..50 {
+                let r = rand_u32();
+                x = snap4(X_MIN + ((r & 0xFFFF) % x_range) as i16);
+                y = snap4(Y_MIN + ((r >> 16) % y_range) as i16);
+                if !overlaps(&placed, x, y) {
+                    break;
+                }
+            }
+            placed.push((x, y));
+            // Alternate styles so a couple of buttons render in dark mode.
+            let style = if i % 2 == 0 {
+                canvas::ButtonStyle::Light
+            } else {
+                canvas::ButtonStyle::Dark
+            };
+            canvas = canvas.button(
+                x,
+                y,
+                BTN_W as u16,
+                BTN_H as u16,
+                format!("{} (#{})", name, i + 1),
+                i as u8,
+                style,
+            );
+        }
+
+        canvas = canvas.button(
+            snap4((SCREEN_W - BTN_W) / 2),
+            snap4(BOTTOM - BTN_H),
+            BTN_W as u16,
+            BTN_H as u16,
+            "Done",
+            DONE_TOKEN,
+            canvas::ButtonStyle::Dark,
+        );
+
+        match canvas.show(comm) {
+            Some(DONE_TOKEN) => return,
+            Some(idx) => {
+                let label = labels.get(idx as usize).copied().unwrap_or("?");
+                if let Some(text) = keyboard::NbglKeyboard::new()
+                    .title(label)
+                    .button_text("Confirm")
+                    .entry_max_len(32)
+                    .show(comm)
+                {
+                    log!("CANVAS", "btn {} got: {}", idx, text.as_str());
+                }
+            }
+            None => return,
         }
     }
 }
