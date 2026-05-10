@@ -31,6 +31,7 @@ mod handlers {
 }
 
 mod keyboard;
+mod nav;
 mod settings;
 mod swap;
 
@@ -210,7 +211,7 @@ pub fn normal_main(swap_params: Option<&CreateTxParams>) -> bool {
 
     if swap_params.is_none() {
         // NbglKeypad::new().title("say something").ask(comm, &[1, 2, 3, 4]);
-        // NbglAction::new().message("ready to go?").action_text("yes").show(comm);
+        NbglAction::new().message("ready to go?").action_text("yes").show(comm);
 
         if let Some(text) = keyboard::NbglKeyboard::new()
             .title("Type something")
@@ -220,6 +221,98 @@ pub fn normal_main(swap_params: Option<&CreateTxParams>) -> bool {
         {
             log!("KEYBOARD", "got: {}", text.as_str());
         }
+
+        nav::NbglNav::new("Nav demo")
+            .page(nav::NavPage::CenteredInfo {
+                text1: "CenteredInfo".into(),
+                text2: "Three centered text lines".into(),
+                text3: "Swipe \u{2192}".into(),
+            })
+            .page(nav::NavPage::ExtendedCenter {
+                title: "ExtendedCenter".into(),
+                small_title: "Subtitle".into(),
+                description: "Title plus description plus tip box.".into(),
+                sub_text: "Sub text".into(),
+                tip_text: "Tip box at bottom".into(),
+            })
+            .page(nav::NavPage::InfoLongPress {
+                text: "InfoLongPress: hold the button to confirm.".into(),
+                long_press_text: "Hold to confirm".into(),
+                long_press_token: 0x10,
+            })
+            .page(nav::NavPage::InfoButton {
+                text: "InfoButton: a regular tappable button.".into(),
+                button_text: "Press me".into(),
+                button_token: 0x11,
+            })
+            .page(nav::NavPage::TagValueList {
+                pairs: alloc::vec![
+                    ("Network".into(), "Mainnet".into()),
+                    ("Account".into(), "Acct #0".into()),
+                    ("Currency".into(), "BOIL".into()),
+                ],
+            })
+            .page(nav::NavPage::TagValueDetails {
+                pairs: alloc::vec![
+                    ("From".into(), "0xabcd\u{2026}".into()),
+                    ("Amount".into(), "1.5 BOIL".into()),
+                ],
+                details_button_text: "See details".into(),
+                details_button_token: 0x12,
+            })
+            .page(nav::NavPage::TagValueConfirm {
+                pairs: alloc::vec![
+                    ("Action".into(), "Send".into()),
+                    ("Fee".into(), "0.0001 BOIL".into()),
+                ],
+                details_button_text: "Details".into(),
+                details_button_token: 0x13,
+                confirmation_text: "Approve".into(),
+                cancel_text: "Reject".into(),
+                confirmation_token: 0x14,
+                cancel_token: 0x15,
+            })
+            .page(nav::NavPage::SwitchesList {
+                switches: alloc::vec![
+                    nav::Switch {
+                        text: "Notifications".into(),
+                        sub_text: "Alerts when new tx".into(),
+                        init_on: true,
+                        token: 0x20,
+                    },
+                    nav::Switch {
+                        text: "Dark mode".into(),
+                        sub_text: "Use the dark theme".into(),
+                        init_on: false,
+                        token: 0x21,
+                    },
+                ],
+            })
+            .page(nav::NavPage::InfosList {
+                infos: alloc::vec![
+                    ("Version".into(), "1.8.0".into()),
+                    ("Developer".into(), "Ledger".into()),
+                    ("License".into(), "Apache-2.0".into()),
+                ],
+            })
+            .page(nav::NavPage::ChoicesList {
+                choices: alloc::vec!["Mainnet".into(), "Testnet".into(), "Devnet".into()],
+                init_choice: 0,
+                token: 0x30,
+            })
+            .page(nav::NavPage::BarsList {
+                bars: alloc::vec![
+                    nav::BarItem { text: "About".into(), token: 0x40 },
+                    nav::BarItem { text: "Settings".into(), token: 0x41 },
+                    nav::BarItem { text: "Reset".into(), token: 0x42 },
+                ],
+            })
+            .page(nav::NavPage::CenteredInfo {
+                text1: "End of demo".into(),
+                text2: "Press back to exit".into(),
+                text3: "".into(),
+            })
+            .show(comm);
 
         tx_ctx.home = ui_menu_main(comm);
         tx_ctx.home.show_and_return();
