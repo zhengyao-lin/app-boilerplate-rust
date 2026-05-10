@@ -364,19 +364,27 @@ fn run_canvas_demo<const N: usize>(comm: &mut ledger_device_sdk::io::Comm<N>) {
     const SCREEN_W: i16 = 400;
     const TOP: i16 = 96;
     const BOTTOM: i16 = 656;
-    // Canonical small-button geometry on Stax: height 64, radius 32 — height
-    // = 2 * radius makes a clean pill. Both dimensions and the y coordinate
-    // must be multiples of 4 (Stax raster alignment), otherwise the rounded
-    // corners can leave artifacts.
     const BTN_W: i16 = 200;
-    const BTN_H: i16 = 64;
+    // Only the two canonical Stax pairings — `height == 2 * radius_diameter`.
+    // Non-canonical pairings (e.g. R32 with h=80, or R44 with h=88) make the
+    // rasterizer leave stray screen-color pixels at the rounded-corner cut-
+    // outs ("white corners on a black button") and can crash inside the draw
+    // syscall, so we don't expose them here.
+    const DONE_H: i16 = 64;
+    const DONE_RADIUS: canvas::nbgl_radius_t = canvas::RADIUS_32_PIXELS;
+    const BTN_VARIANTS: &[(canvas::nbgl_radius_t, i16)] = &[
+        (canvas::RADIUS_32_PIXELS, 64), // small pill
+        (canvas::RADIUS_40_PIXELS, 80), // big pill
+    ];
+    const MAX_BTN_H: i16 = 80;
     const TXT_W: u16 = 360;
     const TXT_H: u16 = 32;
     // AABB inflation when checking for overlap — minimum gap between buttons.
     const GAP: i16 = 24;
     // Random region for buttons (excludes header text + Done-button strip).
     const Y_MIN: i16 = TOP + 40;
-    const Y_MAX: i16 = BOTTOM - BTN_H - GAP - BTN_H; // leave room for Done btn
+    // Bound y so even the tallest random button fits above the Done button.
+    const Y_MAX: i16 = BOTTOM - MAX_BTN_H - GAP - DONE_H;
     const X_MIN: i16 = 20;
     const X_MAX: i16 = SCREEN_W - BTN_W - 20;
     // 4-pixel snap helper.
@@ -392,10 +400,10 @@ fn run_canvas_demo<const N: usize>(comm: &mut ledger_device_sdk::io::Comm<N>) {
         u32::from_le_bytes(buf)
     }
 
-    fn overlaps(placed: &[(i16, i16)], x: i16, y: i16) -> bool {
-        placed.iter().any(|&(px, py)| {
+    fn overlaps(placed: &[(i16, i16, i16)], x: i16, y: i16, h: i16) -> bool {
+        placed.iter().any(|&(px, py, ph)| {
             let x_overlap = !(x + BTN_W + GAP <= px || px + BTN_W + GAP <= x);
-            let y_overlap = !(y + BTN_H + GAP <= py || py + BTN_H + GAP <= y);
+            let y_overlap = !(y + h + GAP <= py || py + ph + GAP <= y);
             x_overlap && y_overlap
         })
     }
@@ -404,11 +412,15 @@ fn run_canvas_demo<const N: usize>(comm: &mut ledger_device_sdk::io::Comm<N>) {
         let mut canvas =
             canvas::Canvas::new().text(20, TOP, TXT_W, TXT_H, "Tap a button to type");
 
-        let mut placed: Vec<(i16, i16)> = Vec::new();
+        let mut placed: Vec<(i16, i16, i16)> = Vec::new();
         let x_range = (X_MAX - X_MIN) as u32;
         let y_range = (Y_MAX - Y_MIN) as u32;
 
         for (i, name) in labels.iter().enumerate() {
+            // Pick a random (radius, height) pairing for this button.
+            let pick = (rand_u32() as usize) % BTN_VARIANTS.len();
+            let (radius, btn_h) = BTN_VARIANTS[pick];
+
             let mut x = X_MIN;
             let mut y = Y_MIN;
             // Reject up to 50 candidates to avoid overlap; if we never find a
@@ -417,11 +429,11 @@ fn run_canvas_demo<const N: usize>(comm: &mut ledger_device_sdk::io::Comm<N>) {
                 let r = rand_u32();
                 x = snap4(X_MIN + ((r & 0xFFFF) % x_range) as i16);
                 y = snap4(Y_MIN + ((r >> 16) % y_range) as i16);
-                if !overlaps(&placed, x, y) {
+                if !overlaps(&placed, x, y, btn_h) {
                     break;
                 }
             }
-            placed.push((x, y));
+            placed.push((x, y, btn_h));
             // Alternate styles so a couple of buttons render in dark mode.
             let style = if i % 2 == 0 {
                 canvas::ButtonStyle::Light
@@ -432,21 +444,23 @@ fn run_canvas_demo<const N: usize>(comm: &mut ledger_device_sdk::io::Comm<N>) {
                 x,
                 y,
                 BTN_W as u16,
-                BTN_H as u16,
+                btn_h as u16,
                 format!("{} (#{})", name, i + 1),
                 i as u8,
                 style,
+                radius,
             );
         }
 
         canvas = canvas.button(
             snap4((SCREEN_W - BTN_W) / 2),
-            snap4(BOTTOM - BTN_H),
+            snap4(BOTTOM - DONE_H),
             BTN_W as u16,
-            BTN_H as u16,
+            DONE_H as u16,
             "Done",
             DONE_TOKEN,
             canvas::ButtonStyle::Dark,
+            DONE_RADIUS,
         );
 
         match canvas.show(comm) {

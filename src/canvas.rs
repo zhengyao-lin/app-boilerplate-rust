@@ -24,8 +24,15 @@ use ledger_device_sdk::sys::{
     nbgl_screenRedraw, nbgl_screenSet, nbgl_text_area_t, nbgl_touchType_t,
     ux_process_finger_event, ux_process_ticker_event, BAGL_FONT_INTER_REGULAR_24px,
     BAGL_FONT_INTER_SEMIBOLD_24px, BLACK, BUTTON, CENTER, LIGHT_GRAY, NBGL_BPP_4, NO_STYLE,
-    OS_IO_PACKET_TYPE_SEPH, OS_IO_PACKET_TYPE_SE_EVT, RADIUS_32_PIXELS, SEPROXYHAL_TAG_FINGER_EVENT,
+    OS_IO_PACKET_TYPE_SEPH, OS_IO_PACKET_TYPE_SE_EVT, SEPROXYHAL_TAG_FINGER_EVENT,
     SEPROXYHAL_TAG_TICKER_EVENT, TEXT_AREA, TOP_LEFT, TOUCHED, WHITE,
+};
+
+// Re-export the Stax radius constants so callers can pick one without
+// pulling in `ledger_device_sdk::sys` directly.
+pub use ledger_device_sdk::sys::{
+    nbgl_radius_t, RADIUS_0_PIXELS, RADIUS_20_PIXELS, RADIUS_28_PIXELS, RADIUS_32_PIXELS,
+    RADIUS_40_PIXELS, RADIUS_44_PIXELS,
 };
 
 // One layer of the screen stack used by all our objects.
@@ -53,6 +60,8 @@ pub enum Item {
         text: String,
     },
     /// Tappable rounded button. The token is reported back from `show()`.
+    /// `radius` must satisfy `min(w, h) >= 2 * radius_diameter`, otherwise the
+    /// rounded corners overlap and render incorrectly.
     Button {
         x: i16,
         y: i16,
@@ -61,6 +70,7 @@ pub enum Item {
         text: String,
         token: u8,
         style: ButtonStyle,
+        radius: nbgl_radius_t,
     },
 }
 
@@ -93,6 +103,7 @@ impl Canvas {
         text: impl Into<String>,
         token: u8,
         style: ButtonStyle,
+        radius: nbgl_radius_t,
     ) -> Self {
         self.items.push(Item::Button {
             x,
@@ -102,6 +113,7 @@ impl Canvas {
             text: text.into(),
             token,
             style,
+            radius,
         });
         self
     }
@@ -178,6 +190,7 @@ impl Canvas {
                         h,
                         token,
                         style,
+                        radius,
                         ..
                     } => {
                         let (inner, border, fg) = match style {
@@ -196,7 +209,7 @@ impl Canvas {
                                 innerColor: inner,
                                 borderColor: border,
                                 foregroundColor: fg,
-                                radius: RADIUS_32_PIXELS,
+                                radius: *radius,
                                 fontId: BAGL_FONT_INTER_SEMIBOLD_24px,
                                 localized: false,
                                 token: *token,
